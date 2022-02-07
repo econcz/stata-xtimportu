@@ -1,18 +1,24 @@
-*! version 1.1.0  31dec2020
+*! version 1.1.1  31jan2022  I I Bolotov
 program def xtimportu, rclass
 	version 14.0
 	/*
-		This program imports monthly, quarterly, half-yearly and yearly time
-		series and panel data from a supported file format, filtering and
-		encoding its cross-sectional units if required (use "|" as separator
-		in encode()), allowing the user to export and/or save the result.
-		Wide (pivoted) data must be imported in a way that the time values
-		are located in _n == 1 (use cellrange() for excel and preformat()
-		for other filetypes) and are transposed with (SSC) sxpose2.
-		Unicode characters are fully supported for Stata 14 and newer versions.
-		Author: Ilya Bolotov, MBA, Ph.D.
-		Date: 20 November 2020
+		This program imports monthly, quarterly, half-yearly and yearly time    
+		series and panel data from a supported file format, filtering and       
+		encoding its cross-sectional units if required (use "|" as separator    
+		in encode()), allowing the user to export and/or save the result.       
+		Wide (pivoted) data must be imported in a way that the time values      
+		are located in _n == 1 (use cellrange() for excel and preformat()       
+		for other filetypes) and are transposed with (SSC) sxpose2.             
+		Unicode characters are fully supported for Stata 14 and newer versions. 
+
+		Author: Ilya Bolotov, MBA, Ph.D.                                        
+		Date: 20 November 2020                                                  
 	*/
+	cap which sxpose2
+	if _rc {
+		ssc install sxpose2
+	}
+	// syntax                                                                   
 	syntax																	///
 	/* syntax for import */ anything(name=import id="import: subcommand"),	///
 	[/* ignore */ FIRSTrow VARNames(string) case(string) force replace]		///
@@ -21,7 +27,7 @@ program def xtimportu, rclass
 	[TIMEvar(string) TFORmat(string)] TFREQuency(string) [drop TDEstring]	///
 	[GENerate(string) float Ignore(string asis) percent dpcomma TOstring]	///
 	[clear export(string asis) SAving(string asis) *]
-	// adjust and preprocess options
+	// adjust and preprocess options                                            
 	local regex  = ustrregexra(`"`regex'"',  "\s", "\\s")
 	local encode = ustrregexra(`"`encode'"', "\s", "_"  )
 	local tfrequency =														///
@@ -30,7 +36,7 @@ program def xtimportu, rclass
 	cond(ustrregexm(strtrim(`"`tfrequency'"'), "q", 1), "quarter",  "") +	///
 	cond(ustrregexm(strtrim(`"`tfrequency'"'), "m", 1), "month",    "")
 	local ignore = cond(`"`ignore'"' != "", `"ignore(`ignore')"',   "")
-	// check options for errors
+	// check options for errors                                                 
 	if `"`tfrequency'"' == "" {
 		di as err "invalid syntax"
 		exit 198
@@ -44,18 +50,18 @@ program def xtimportu, rclass
 		exit 198
 	}
 	tempname j F f var
-	// check for third-party packages from SSC
+	// check for third-party packages from SSC                                  
 	qui which sxpose2
-	// import data from a supported file format
+	// import data from a supported file format                                 
 	if `"`clear'"' == "" {					// preserve data (if required)
 		preserve
 	}
 	qui import `import', `options' clear
 	`preformat'								// preformat data (if required)
-	// prepare the cross-sectional unit(s)
+	// prepare the cross-sectional unit(s)                                      
 	if `"`regex'"' != "" {					// filter rows (if required)
 		qui {
-			/* filter panelvar by matching regex() */
+			/* filter panelvar by matching regex()                            */
 			if `"`panelvar'"' == "" {		// get the first variable
 				ds
 				/* define panelvar */
@@ -63,7 +69,7 @@ program def xtimportu, rclass
 			}
 			drop if ! ustrregexm(`panelvar', `"`regex'"') &					///
 			("`timevar'" != "" | _n > 1)	// preserve the first row
-			/* replace regex with the contents of encode() */
+			/* replace regex with the contents of encode()                    */
 			if `"`encode'"' != "" {
 				local regex = usubinstr(`"`regex'"', "|", " ", .)
 				local i = usubinstr(`"`encode'"', "|", " ", .)
@@ -72,18 +78,18 @@ program def xtimportu, rclass
 					ustrregexm(`panelvar', word(`"`regex'"', ``j''))
 				}
 			}
-			/* drop duplicates and missing values */
+			/* drop duplicates and missing values                             */
 			by `panelvar', sort: drop if _n > 1
 		}
 	}
-	// prepare the time variale
+	// prepare the time variale                                                 
 	qui {
 		if "`timevar'" == "" {				// transpose data (if required)
 			sxpose2, clear force
 			/* define timevar */
 			local timevar "_var1"
 		}
-		/* fill in eventual missing values in the time variable */
+		/* fill in eventual missing values in the time variable               */
 		replace `timevar' = `timevar'[_n - 1] if mi(`timevar')
 		tostring `timevar', replace force
 		if `"`tformat'"' == "" {			// autoformat (if required)
@@ -134,7 +140,7 @@ program def xtimportu, rclass
 			reshape long value, string i(`panelvar') j(`timevar')
 			destring `timevar', replace force
 		}
-		/* format the time variable as str# or %tX */
+		/* format the time variable as str# or %tX                            */
 		if `"`tdestring'"' != "" {
 			format `timevar' %t`=lower(substr("`tfrequency'", 1, 1))'
 		}
@@ -147,11 +153,11 @@ program def xtimportu, rclass
 			rename `dt' `timevar'
 		}
 	}
-	// prepare the variable
+	// prepare the variable                                                     
 	if `"`tostring'"' == "" {
 		qui destring value, replace force `float' `ignore' `percent' `dpcomma'
 	}
-	// rename dimensions and the variable, order and sort
+	// rename dimensions and the variable, order and sort                       
 	rename `panelvar' unit
 	rename `timevar' `tfrequency'
 	if `"`generate'"' != "" {
@@ -160,11 +166,11 @@ program def xtimportu, rclass
 	}
 	order unit `tfrequency'
 	sort  unit `tfrequency'
-	// export data to a supported file format
+	// export data to a supported file format                                   
 	if `"`export'"' != "" {
 		export `export'
 	}
-	// save data to a DTA file
+	// save data to a DTA file                                                  
 	if `"`saving'"' != "" {
 		save `saving'
 	}

@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 1.1.0  31dec2020}{...}
+{* *! version 1.1.1  31jan2022}{...}
 {viewerjumpto "Syntax" "xtimportu##syntax"}{...}
 {viewerjumpto "Description" "xtimportu##description"}{...}
 {viewerjumpto "Options" "xtimportu##options"}{...}
